@@ -1,131 +1,202 @@
-# VALIDATION PROMPT — Verify agent_setup.py is correct before testing
+# FINAL PRE-FLIGHT CHECK — Ensure everything runs smoothly
 # ════════════════════════════════════════════════════════════════════════════
 # Paste into VS Code Copilot Chat (Ctrl+Alt+I)
-# Files needed open: agent_setup.py, ModelConfig.py, app.py,
-#                    backend/agents/intent_agent.py,
-#                    backend/routers/query_router.py,
-#                    backend/processors/sherlock_processor.py,
-#                    backend/processors/response_builder.py,
-#                    backend/gates/dq_gate.py,
-#                    backend/gates/recon_gate.py
 # ════════════════════════════════════════════════════════════════════════════
 
 @workspace
 
-Read #file:agent_setup.py completely. Then read each backend file as needed to validate.
-Do NOT suggest running any code or terminal commands. Static analysis only.
+Read ALL of these files before responding. Do not write any code until you 
+have read every file listed. Do NOT run any code or terminal commands.
 
-Validate all 6 sections below and give a PASS/FAIL for each check.
-At the end, give a final verdict: READY TO TEST or NEEDS FIX.
-
----
-
-## SECTION 1 — sys.path (Will Python find the backend modules?)
-
-Read the sys.path.insert line in agent_setup.py.
-
-CHECK 1.1: Does it use `os.path.abspath(__file__)` to build the path? (not a hardcoded string)
-CHECK 1.2: Does it join with `"backend"` (or the actual folder name shown in the Expected Structure)?
-           The folder is called `sandbox_backend` based on Copilot's output — verify which name is used
-           and whether that folder actually exists in the workspace.
-CHECK 1.3: Is there a guard `if _BACKEND not in sys.path` to avoid duplicate inserts?
+Files to read:
+- #file:agent_setup.py
+- #file:ModelConfig.py  
+- #file:app.py
+- #file:backend/agents/intent_agent.py
+- #file:backend/agents/selector_agent.py
+- #file:backend/routers/query_router.py
+- #file:backend/processors/sherlock_processor.py
+- #file:backend/processors/response_builder.py
+- #file:backend/gates/dq_gate.py
+- #file:backend/gates/recon_gate.py
 
 ---
 
-## SECTION 2 — Imports (Are all 7 backend modules imported correctly?)
+## ACTUAL PROJECT STRUCTURE (confirmed from file explorer)
 
-CHECK 2.1: `from agents.intent_agent import detect_intent` — present?
-CHECK 2.2: `from agents.selector_agent import enrich_context` — present?
-CHECK 2.3: `from routers.query_router import build_query` — present?
-CHECK 2.4: `from processors.sherlock_processor import process, _load, _cast, _derive` — present?
-CHECK 2.5: `from processors.response_builder import build_response` — present?
-CHECK 2.6: `from gates.dq_gate import run_dq_gate` — present?
-CHECK 2.7: `from gates.recon_gate import run_recon_gate` — present?
-CHECK 2.8: `from ModelConfig import model` — still present and unchanged?
+The project root is: H:\work\AI-ML\Final_agent\backend\sandbox_backend\
 
-RED FLAGS — fail immediately if any of these exist:
-❌ `import requests` or `import httpx` — means HTTP is being used
-❌ `http://localhost` or any URL string — means HTTP is being used
-❌ `from agents.model_config import` — old Anthropic client, must be gone
-❌ `import anthropic` — wrong LLM client, must be gone
-❌ `async def get_domestic_metadata` — must be synchronous, not async
-
----
-
-## SECTION 3 — Pipeline order in get_domestic_metadata()
-
-Read #file:backend/processors/sherlock_processor.py to confirm function names exist.
-Read #file:backend/processors/response_builder.py to confirm build_response signature.
-
-CHECK 3.1: Does get_domestic_metadata() call exactly these steps in this order?
-  Step 1: intent_result  = detect_intent(query)
-  Step 2: data_query     = build_query(intent_result, ...)
-  Step 3: context        = enrich_context(data_query, intent_result)
-  Step 4: process_result = process(data_query, context)
-  Step 5: full_df        = _derive(_cast(_load()))
-  Step 6: dq_header      = run_dq_gate(full_df)
-  Step 7: recon_result   = run_recon_gate(full_df)
-  Step 8: tool_data      = build_response(intent_result, process_result, dq_header, recon_result, data_query)
-  Step 9: return tool_data
-
-CHECK 3.2: Read the ACTUAL signature of build_response() in response_builder.py.
-           Do the argument names and ORDER in the call match the function signature exactly?
-           List both the call and the signature side by side.
-
-CHECK 3.3: Does get_domestic_metadata() contain any arithmetic? (+, -, *, /, sum, count, mean)
-           If yes — FAIL. All math must be in sherlock_processor.py only.
+```
+sandbox_backend\                     ← PROJECT ROOT (all files run from here)
+├── agent_setup.py                   ← Agent + get_domestic_metadata()
+├── ModelConfig.py                   ← smart_sdk Bedrock auth, login(), model
+├── app.py                           ← Entry point, LocalRunner, runner.run()
+├── main.py                          ← IGNORE — standalone FastAPI, not used
+├── requirements.txt
+├── synthetic_data.py
+└── backend\                         ← Sherlock computation modules
+    ├── agents\
+    │   ├── __init__.py
+    │   ├── intent_agent.py
+    │   ├── selector_agent.py
+    │   ├── financial_agent.py
+    │   └── overdraft_agent.py
+    ├── data\
+    │   ├── internal_analytics_data.csv
+    │   └── synthetic_financial_data_1.xlsx
+    ├── gates\
+    │   ├── __init__.py
+    │   ├── dq_gate.py
+    │   └── recon_gate.py
+    ├── models\
+    │   ├── __init__.py
+    │   └── response_models.py
+    ├── processors\
+    │   ├── __init__.py
+    │   ├── response_builder.py
+    │   └── sherlock_processor.py
+    ├── routers\
+    │   ├── __init__.py
+    │   └── query_router.py
+    └── utils\
+        ├── __init__.py
+        └── llm_sandbox.py
+```
 
 ---
 
-## SECTION 4 — Agent definition unchanged
+## CHECK 1 — sys.path in agent_setup.py
 
-CHECK 4.1: Is `lbp_cash_investigation_agent(model)` function signature unchanged?
-CHECK 4.2: Does it return `Agent(name=..., model=model, tools=[get_domestic_metadata], system_message=...)`?
-CHECK 4.3: Is the `tools` list exactly `[get_domestic_metadata]`? (not a list of strings, not HTTP endpoints)
-CHECK 4.4: Does system_message call `get_sherlock_system_prompt()`?
-CHECK 4.5: Does `get_sherlock_system_prompt()` contain the phrase "PRESENTATION LAYER ONLY"?
-CHECK 4.6: Does `get_sherlock_system_prompt()` contain at least one ❌ prohibition on arithmetic?
-CHECK 4.7: Does `get_sherlock_system_prompt()` preserve the original VISUALIZATION GUIDELINES
-           section (the ```json chart format block)?
+The `_BACKEND` path must resolve to the `backend\` subfolder.
+Since agent_setup.py is in `sandbox_backend\`, the correct path is:
 
----
+```python
+_BACKEND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "backend")
+```
 
-## SECTION 5 — ModelConfig.py and app.py are untouched
+Verify:
+- Does `os.path.dirname(os.path.abspath(__file__))` resolve to `sandbox_backend\`?
+- Does joining with `"backend"` give `sandbox_backend\backend\`?
+- Does `sandbox_backend\backend\` actually exist in the workspace? (YES — confirmed)
+- Is there a guard: `if _BACKEND not in sys.path`?
 
-CHECK 5.1: Read #file:ModelConfig.py — does it still have `login()` and `get_model()` using smart_sdk?
-CHECK 5.2: Read #file:app.py — does it still have `LocalRunner` and `runner.run(agent, query)`?
-CHECK 5.3: Neither file imports anything from the backend/ folder?
-
----
-
-## SECTION 6 — Trace a sample query end-to-end (dry run, no execution)
-
-Trace what happens when this query is submitted:
-  "show top 5 overdraft accounts"
-
-Using only static code reading (no execution), answer:
-
-TRACE 6.1: What does detect_intent("show top 5 overdraft accounts") return?
-           Read intent_agent.py regex patterns — which pattern matches? What intent name?
-
-TRACE 6.2: What does build_query() return for that intent?
-           Read query_router.py — what are sort_by, od_only, top_n values?
-
-TRACE 6.3: Does enrich_context() route to FinancialAgent or OverdraftAgent for this intent?
-           Read selector_agent.py — check OD_INTENTS set.
-
-TRACE 6.4: What columns does process() use for filtering?
-           Read sherlock_processor.py — does it filter od_only=True and sort by OD_AMOUNT desc?
-
-TRACE 6.5: What does build_response() return?
-           Read response_builder.py — does viz.primary use OD_AMOUNT (not EFF_BALANCE_LCY)?
+If the folder name used is different (e.g. "sandbox_backend" instead of "backend"),
+flag it and show the correction.
 
 ---
 
-## FINAL VERDICT
+## CHECK 2 — Data file path in sherlock_processor.py
 
-After all 6 sections, give one of:
+Read #file:backend/processors/sherlock_processor.py and find DATA_PATH.
 
-✅ READY TO TEST — all checks pass, architecture is correct
-⚠️ NEEDS MINOR FIX — list specific lines to change (do not rewrite whole file)
-❌ NEEDS REWORK — critical issue found, describe it clearly
+The data files in the workspace are:
+- `backend\data\internal_analytics_data.csv`
+- `backend\data\synthetic_financial_data_1.xlsx`
+
+Note: the xlsx file is named `synthetic_financial_data_1.xlsx` (has `_1` suffix).
+
+Verify:
+- Does DATA_PATH match the ACTUAL filename exactly (including `_1` if present)?
+- Does the fallback chain try CSV if xlsx not found?
+- If DATA_PATH is wrong, show the corrected line only.
+
+---
+
+## CHECK 3 — app.py flow is complete and unchanged
+
+Read #file:app.py and confirm this exact flow exists:
+
+```
+execute_query(query, user_id, session_id)
+  └── agent = lbp_cash_investigation_agent(model)
+  └── runner = LocalRunner(app_name=..., user_id=..., session_id=...)
+  └── response = runner.run(agent, query)
+  └── return response
+```
+
+Verify:
+- `from agent_setup import lbp_cash_investigation_agent` — present?
+- `from ModelConfig import model` — present?
+- `LocalRunner` imported from smart_sdk — present?
+- `runner.run(agent, query)` — present?
+- NO imports from `backend\` folder in app.py — confirmed?
+- NO HTTP calls in app.py — confirmed?
+
+---
+
+## CHECK 4 — ModelConfig.py has Bedrock login
+
+Read #file:ModelConfig.py and confirm:
+- `login()` is called to get `gateway_token`
+- `Model(provider=ModelProvider.BEDROCK, ...)` is used
+- Module-level `model = get_model()` is exported
+- NO reference to ANTHROPIC_API_KEY (that's the old standalone version)
+
+---
+
+## CHECK 5 — utils/llm_sandbox.py (new file — what is it?)
+
+Read `backend/utils/llm_sandbox.py`.
+
+This file was not in the original Sherlock backend design.
+Determine:
+- What does it do?
+- Is it imported anywhere in the pipeline (intent_agent, sherlock_processor, etc.)?
+- If it imports `agents.model_config` or `anthropic` — flag it as a problem.
+- If it is not imported anywhere — it is dead code, note it but do not remove.
+
+---
+
+## CHECK 6 — No circular imports
+
+Trace the import chain from agent_setup.py:
+
+```
+agent_setup.py
+  ├── from ModelConfig import model
+  ├── from agents.intent_agent import detect_intent
+  │     └── does intent_agent import anything from agent_setup? (should be NO)
+  ├── from processors.sherlock_processor import process, _load, _cast, _derive
+  │     └── does sherlock_processor import ModelConfig? (should be NO)
+  └── from processors.response_builder import build_response
+        └── does response_builder import ModelConfig? (should be NO)
+```
+
+Flag any circular import (A imports B, B imports A).
+
+---
+
+## CHECK 7 — requirements.txt has all needed packages
+
+Read #file:requirements.txt and verify these are ALL present:
+- `fastapi` or `fastapi==...`
+- `pandas`
+- `numpy`  
+- `openpyxl`        ← required for pd.read_excel()
+- `python-dotenv`
+- `pydantic`
+- smart_sdk package (whatever it is named in your requirements)
+
+Flag any missing package that would cause an ImportError at startup.
+Do NOT flag packages used only by main.py (uvicorn, etc.) — those are fine to keep.
+
+---
+
+## FINAL OUTPUT
+
+Give me a table like this:
+
+| Check | Status | Issue (if any) | Fix needed |
+|-------|--------|----------------|------------|
+| 1. sys.path | ✅/❌ | ... | ... |
+| 2. Data file path | ✅/❌ | ... | ... |
+| 3. app.py flow | ✅/❌ | ... | ... |
+| 4. Bedrock login | ✅/❌ | ... | ... |
+| 5. llm_sandbox.py | ✅/❌ | ... | ... |
+| 6. No circular imports | ✅/❌ | ... | ... |
+| 7. requirements.txt | ✅/❌ | ... | ... |
+
+Then:
+- If ALL green: output exactly "✅ READY TO RUN — execute app.py"
+- If any red: show ONLY the specific lines that need changing, nothing else.
+  Do not rewrite entire files. One fix at a time.
