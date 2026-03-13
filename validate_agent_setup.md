@@ -1,8 +1,4 @@
-Got it 👍 — you want prompts you can ask an office Copilot / enterprise LLM so it analyzes you as an engineer, and then I can review your prompt + its response and give honest feedback about your skill and thinking.
 
-So the goal is: use your office LLM as an evaluator of your engineering thinking.
-
-Below are very effective prompts for that.
 
 
 ---
